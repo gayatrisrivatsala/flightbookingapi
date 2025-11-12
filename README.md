@@ -24,7 +24,7 @@ Setup Instructions
 1. Clone the repository.
 2. Run `npm install` to install dependencies.
 3. Create a `.env` file in the root folder with:
-   JWT_SECRET= "individual token here"
+   JWT_SECRET= placeyourindividualtokenhere
 4. Run `npm run dev` to start the server.
 5. Server runs on http://localhost:3000
 
