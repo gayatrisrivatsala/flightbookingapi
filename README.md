@@ -37,7 +37,7 @@ POST /users/login
   Log in with email and password. Returns JWT token.
 
 GET /flights
-  Public route. Returns list of flights.
+  Returns list of flights.
   Supports:
     ?page=1&limit=5 for pagination
     ?origin=BLR&dest=DEL for search
