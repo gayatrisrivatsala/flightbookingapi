@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const bcrypt= require('bcryptjs');
 const jwt= require('jsonwebtoken');
@@ -20,7 +21,6 @@ let flights=[
 ];
 let bookings=[];
 let nextBookingId=1; 
-const JWT_SECRET="your-secret-key";
 let nextUserId=1;
 
 //signup endpoint
@@ -60,12 +60,36 @@ app.post('/users/login',(req,res)=>{
     if(!isValid){
         return res.status(401).json({error:'Invalid password'});
     }
-    const token=jwt.sign({id:user.id,email:user.email},JWT_SECRET,{expiresIn: '30m'});
+    const token=jwt.sign({id:user.id,email:user.email},process.env.JWT_SECRET,{expiresIn: '30m'});
     res.json({token});
 });
 
-// listing the flights
-app.get('/flights',(req,res)=>{res.json(flights);});
+// // listing the flights
+// app.get('/flights',(req,res)=>{res.json(flights);});
+//including pagination here
+app.get('/flights',(req,res)=>{
+    let results= flights;
+    const {origin,dest,page,limit}=req.query;
+    if(origin){
+        results=results.filter(f=>f.origin.toLowerCase()===origin.toLowerCase());
+    }
+    if(dest){
+        results=results.filter(f=>f.dest.toLowerCase()===dest.toLowerCase());
+    }
+    const pageInt=parseInt(page)||1;
+    const limitInt=parseInt(limit)||10;
+    const startIndex=(pageInt-1)*limitInt;
+    const endIndex=pageInt*limitInt;
+
+    const paginatedResults=results.slice(startIndex,endIndex);
+
+    res.json({page:pageInt,
+        limit:limitInt,
+        total: results.length,
+        totalPages: Math.ceil(results.length/limitInt),
+        data: paginatedResults
+    });
+});
 
 //auth middleware
 function authenticateToken(req,res,next){
@@ -74,7 +98,7 @@ function authenticateToken(req,res,next){
     if(!token){
         return res.status(401).json({error:'Access token required'});
     }
-    jwt.verify(token,JWT_SECRET,(err,user)=>{
+    jwt.verify(token,process.env.JWT_SECRET,(err,user)=>{
         if(err){
             return res.status(403).json({error:'Invalid or expired token'});
         }
@@ -110,6 +134,41 @@ app.post('/bookings',authenticateToken,(req,res)=>{
         message: 'Booking confirmed',
         booking: newBooking
     });
+});
+
+//cancelling endpoint
+app.post('/bookings/:id/cancel',authenticateToken,(req,res)=>{
+    const {id} = req.params;
+    const userId = req.user.id;
+    const booking=bookings.find(b=>b.id==id);
+    if (!booking) {
+        return res.status(404).json({error:'Booking not found'});
+      }
+    if (booking.userId!=userId) {
+        return res.status(403).json({error:'Not authorized to cancel this booking'});
+      }
+    if (booking.status==='cancelled') {
+        return res.status(400).json({ error:'Booking already cancelled'});
+      }
+    booking.status = 'cancelled';
+    const flight=flights.find(f=>f.id==booking.flightId);
+    if(flight){
+        flight.availSeats+=1;
+    }
+    res.json({
+        message:'Booking cancelled successfully',
+        bookingId:booking.id
+    });
+});
+
+//booking history endpoint
+app.get('/bookings/:userId',authenticateToken,(req,res)=>{
+    const {userId}=req.params;
+    if(req.user.id!=userId){
+        return res.status(403).json({error:'Not authorizwd'});
+    }
+    const userBookings=bookings.filter(b=>b.userId==userId);
+    res.json(userBookings);
 });
 
 //server
